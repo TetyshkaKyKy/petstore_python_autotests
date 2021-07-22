@@ -1,12 +1,12 @@
-import requests
 from http import HTTPStatus
-from src.services import base_url
-from deepdiff import DeepDiff
+from src.my_requests import MyRequests
+import jsonschema
+
 
 def test_create_pet_with_required_parameters():
-    response = requests.post(
-        url=f'{base_url}/pet',
-        json={
+    response = MyRequests.post(
+        '/pet',
+        data={
             "name": "DOG",
             "photoUrls": [
                 "https://bigpicture.ru/wp-content/uploads/2015/11/nophotoshop29-800x532.jpg"
@@ -17,52 +17,105 @@ def test_create_pet_with_required_parameters():
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()['name'] == 'DOG'
-    assert response.json()['photoUrls'] == ['https://bigpicture.ru/wp-content/uploads/2015/11/nophotoshop29-800x532.jpg']
+    assert response.json()['photoUrls'] == [
+        'https://bigpicture.ru/wp-content/uploads/2015/11/nophotoshop29-800x532.jpg']
 
 
 def test_create_pet_with_all_parameters():
+    # create pet
     request_body = {
-            "id": 14,
-            "category": {
+        "category": {
+            "id": 1,
+            "name": "DOG"
+        },
+        "name": "DOG",
+        "photoUrls": [
+            "https://clck.ru/UhnQT"
+        ],
+        "tags": [
+            {
                 "id": 1,
-                "name": "DOG"
-            },
-            "name": "DOG",
-            "photoUrls": [
-                "https://clck.ru/UhnQT"
-            ],
-            "tags": [
-                {
-                    "id": 1,
-                    "name": "new_tag"
-                }
-            ],
-            "status": "available"
-        }
-    response = requests.post(
-        url=f'{base_url}/pet',
-        json=request_body,
+                "name": "new_tag"
+            }
+        ],
+        "status": "available"
+    }
+    response = MyRequests.post(
+        '/pet',
+        data=request_body,
         headers={'accept': 'application/json', 'Content-Type': 'application/json'}
     )
-    actual_result = response.json()
-    diff = DeepDiff(request_body, actual_result)
-    assert response.status_code == HTTPStatus.OK
-    assert not diff, diff.pretty()
 
-#Тест на создание питомца без обязательного параметра name или без обоих обязательных параметров будет идентичен
-#Нет сообщения об ошибке, сущность создается
-def test_create_pet_without_required_parameter_photoUrls():
-    response = requests.post(
-    url=f'{base_url}/pet',
-    json={
-        "name": "DOG"
-    },
-    headers={'accept': 'application/json', 'Content-Type': 'application/json'}
+    assert response.status_code == HTTPStatus.OK
+    new_pet_id = response.json()['id']
+
+    # check new pet
+    response1 = MyRequests.get(
+        f'/pet/{new_pet_id}'
+    )
+
+    expected_result = {
+        "id": new_pet_id,
+        "category": {
+            "id": 1,
+            "name": "DOG"
+        },
+        "name": "DOG",
+        "photoUrls": [
+            "https://clck.ru/UhnQT"
+        ],
+        "tags": [
+            {
+                "id": 1,
+                "name": "new_tag"
+            }
+        ],
+        "status": "available"
+    }
+
+    schema = {
+        'type': 'object',
+        'properties': {
+            'id': {'type': 'integer'},
+            'category': {'type': 'object',
+                         'properties': {
+                             'id': {'type': 'integer'},
+                             'name': {'type': 'string'}
+                         }
+                         },
+            'name': {'type': 'string'},
+            'photoUrls': {'type': 'array',
+                          'items': {'type': 'string'}
+                          },
+            'tags': {'type': 'array',
+                     'items': {'type': 'object'},
+                     'properties': {
+                         'id': {'type': 'integer'},
+                         'name': {'type': 'string'}
+                     }
+                     },
+            'status': {'type': 'string'}
+        }
+    }
+
+    actual_result = response.json()
+    jsonschema.validate(actual_result, schema)
+    assert response1.status_code == HTTPStatus.OK
+    assert expected_result == actual_result
+
+
+'''
+    Тест на создание питомца без обязательного параметра name или без обоих обязательных параметров будет идентичен. 
+    Нет сообщения об ошибке, сущность создается
+'''
+
+
+def test_create_pet_wo_required_parameter_photoUrls():
+    response = MyRequests.post(
+        '/pet',
+        data={
+            "name": "DOG"
+        },
+        headers={'accept': 'application/json', 'Content-Type': 'application/json'}
     )
     assert response.status_code == HTTPStatus.OK
-
-
-
-
-
-
